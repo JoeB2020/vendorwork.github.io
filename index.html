@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Request to Work Vendor Form</title>
+    <title>Work Order Submission Form</title>
     <style>
         * {
             margin: 0;
@@ -119,6 +119,39 @@
             display: none;
             text-align: center;
             padding: 40px;
+        }
+
+        .processing-screen {
+            display: none;
+            text-align: center;
+            padding: 40px;
+        }
+
+        .processing-screen h2 {
+            color: #3498db;
+            margin-bottom: 20px;
+            font-size: 24px;
+        }
+
+        .processing-screen p {
+            color: #7f8c8d;
+            line-height: 1.6;
+            margin-bottom: 20px;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
         }
 
         .company-verification-screen {
@@ -356,8 +389,8 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>Request To Work Submission</h1>
-            <p>Please complete all required fields to submit your request</p>
+            <h1>Work Order Submission</h1>
+            <p>Please complete all required fields to submit your work order</p>
         </div>
 
         <!-- Main Form -->
@@ -440,6 +473,13 @@
             <button class="verify-company-btn" id="verifyCompanyBtn" onclick="verifyCompany()">Verify Company</button>
         </div>
 
+        <!-- Processing Screen -->
+        <div id="processingScreen" class="processing-screen">
+            <h2>📤 Submitting Work Order</h2>
+            <div class="spinner"></div>
+            <p>Please wait while we process your submission...</p>
+        </div>
+
         <!-- Email Verification Screen -->
         <div id="verificationScreen" class="verification-screen">
             <h2>📧 Check Your Email</h2>
@@ -486,6 +526,30 @@ https://yourdomain.com/form?panel=PA-99999&company=Tech%20Solutions&detail=Repla
                 <p style="margin-top: 15px; font-size: 12px; color: #7f8c8d;">
                     <strong>Note:</strong> "ABC Corp", "XYZ Industries", and "Tech Solutions" require company verification. Other companies skip this step.
                 </p>
+
+                <h3 style="margin-top: 20px;">🔗 API Configuration:</h3>
+                <div class="qr-example">
+POST ${API_CONFIG.submitEndpoint}
+Content-Type: application/json
+
+{
+  "timestamp": "2025-06-11T15:30:00.000Z",
+  "verification_token": "WO_1234567890_abc123",
+  "company_verification": "VERIFIED_EMAIL",
+  "technician_name": "John Doe",
+  "company_name": "ABC Corp",
+  "work_order_number": "WO-2024-001",
+  "panel_account_number": "PA-12345",
+  "reference_id": "REF-789",
+  "location_address": "123 Main St, City",
+  "technician_email": "john@abc-corp.com",
+  "work_detail": "Install new control panel"
+}
+                </div>
+                
+                <p style="font-size: 12px; color: #7f8c8d;">
+                    <strong>Setup:</strong> Update the API_CONFIG.submitEndpoint in the JavaScript to your actual API URL.
+                </p>
             </div>
             
             <button class="submit-btn" onclick="resetForm()" style="margin-top: 20px; width: auto; padding: 10px 20px;">Submit Another Order</button>
@@ -498,6 +562,20 @@ https://yourdomain.com/form?panel=PA-99999&company=Tech%20Solutions&detail=Repla
         let prefilledFields = [];
         let selectedVerificationMethod = '';
         let companyVerified = false;
+
+        // API Configuration - UPDATE THESE URLs FOR YOUR SYSTEM
+        const API_CONFIG = {
+            submitEndpoint: 'https://your-actual-api.com/api/workorder/submit', // 👈 CHANGE THIS TO YOUR API URL
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer YOUR_API_KEY',    // 👈 ADD YOUR API KEY HERE
+                'X-API-Key': 'your-api-key'                // 👈 OR ADD OTHER AUTH HEADERS
+                // Add any other headers your API needs:
+                // 'X-Custom-Header': 'your-value',
+                // 'X-Client-ID': 'your-client-id'
+            }
+        };
 
         // Company configuration - you can customize this
         const companyConfig = {
@@ -742,6 +820,11 @@ https://yourdomain.com/form?panel=PA-99999&company=Tech%20Solutions&detail=Repla
 
         function goBackToForm() {
             document.getElementById('companyVerificationScreen').style.display = 'none';
+            document.getElementById('processingScreen').style.display = 'none';
+            document.getElementById('verificationScreen').style.display = 'none';
+            if (document.getElementById('errorScreen')) {
+                document.getElementById('errorScreen').style.display = 'none';
+            }
             document.getElementById('mainForm').style.display = 'block';
         }
 
@@ -804,12 +887,26 @@ Work Order Management System`;
             showSuccessScreen();
         }
 
-        function showSuccessScreen() {
+        function showSuccessScreen(apiResponse = null) {
+            console.log('Showing success screen with response:', apiResponse); // Debug log
+            
+            document.getElementById('processingScreen').style.display = 'none';
             document.getElementById('successScreen').style.display = 'block';
             
             // Generate structured data for regex parsing
             const structuredData = generateStructuredData();
             document.getElementById('structuredData').textContent = structuredData;
+            
+            // If we have API response, show it too
+            if (apiResponse) {
+                const responseDiv = document.createElement('div');
+                responseDiv.className = 'parsed-data';
+                responseDiv.innerHTML = `
+                    <h3>📡 API Response:</h3>
+                    <div class="regex-output">${JSON.stringify(apiResponse, null, 2)}</div>
+                `;
+                document.getElementById('structuredData').parentNode.appendChild(responseDiv);
+            }
         }
 
         function generateStructuredData() {
@@ -857,7 +954,11 @@ SUBMISSION_END
             document.getElementById('qrDataInfo').innerHTML = '';
             document.getElementById('companyVerificationScreen').style.display = 'none';
             document.getElementById('verificationScreen').style.display = 'none';
+            document.getElementById('processingScreen').style.display = 'none';
             document.getElementById('successScreen').style.display = 'none';
+            if (document.getElementById('errorScreen')) {
+                document.getElementById('errorScreen').style.display = 'none';
+            }
             document.getElementById('mainForm').style.display = 'block';
             
             // Clear all data and states
